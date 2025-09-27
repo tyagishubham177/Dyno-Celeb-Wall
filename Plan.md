@@ -1,7 +1,9 @@
-Sweet. Three.js + single-judge MVP coming right up. 🚀🖼️
 Here’s a **tight action plan**—no fluff, just moves.
 
 # Wall of Fame — Three.js MVP (single user)
+
+## 0) About
+Wall of Fame is a slick, single-judge, Three.js-powered gallery where celebs duel in quick A/B taps and the wall literally reshapes itself in 3D. 🧱✨ Each vote updates an Elo score, frames resize by rank (with smart caps), and faces flow into artsy layouts—from neat small-n patterns to a golden-angle spiral for bigger casts. Minimal clicks, buttery animations, instant feedback; ties/skips are allowed, and all truth lives in Postgres. It’s part game, part living leaderboard, part interactive museum—your taste curates the space in real time. 🎭📈
 
 ## 1) Scope 🎯
 
@@ -88,5 +90,3 @@ Here’s a **tight action plan**—no fluff, just moves.
 
 * Seed 30–100 celebs → 20–50 votes → wall clearly re-sizes & re-flows smoothly.
 * Page stays >50 FPS on a normal laptop; interactions feel instant (<200ms API).
-
-If you want, I’ll spin a starter with: Next + R3F canvas, phyllotaxis layout, Elo service, and the three API routes baked in. Minimal, clean, shippable. 🧪✨
