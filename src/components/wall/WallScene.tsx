@@ -39,7 +39,7 @@ const WallFrame = ({ instance }: { instance: WallInstance }) => {
       {/* eslint-disable-next-line jsx-a11y/alt-text */}
       <Image
         url={instance.imageUrl}
-        scale={[1, 1, 1]}
+        scale={1}
         position={[0, 0, 0]}
         toneMapped={false}
       />
