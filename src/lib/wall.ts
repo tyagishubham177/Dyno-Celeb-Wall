@@ -16,31 +16,56 @@ export type WallInstance = WallDatum & {
   order: number;
 };
 
-const SMALL_LAYOUTS: Record<number, [number, number][]> = {
-  1: [[0, 0]],
-  2: [[-1.8, 0], [1.8, 0]],
-  3: [[0, 1.8], [-1.7, -1], [1.7, -1]],
-  4: [[-1.9, 1.4], [1.9, 1.4], [-1.9, -1.4], [1.9, -1.4]],
+const SMALL_LAYOUT_PATTERNS: Record<number, number[]> = {
+  1: [1],
+  2: [2],
+  3: [1, 2],
+  4: [2, 2],
+  5: [2, 3],
+  6: [3, 3],
+  7: [3, 4],
+  8: [3, 5],
+  9: [3, 3, 3],
 };
 
+const SMALL_COL_GAP = 2.45;
+const SMALL_ROW_GAP = 2.75;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const BASE_RADIAL_SPACING = 1.5;
-const ASPECT_SQUASH = 0.82;
-const MIN_SCALE = 0.85;
-const MAX_SCALE = 2.6;
-const MIN_PX = 64;
-const MAX_PX = 320;
+const BASE_RADIAL_SPACING = 1.85;
+const ASPECT_SQUASH = 0.78;
+const MIN_SCALE = 0.92;
+const MAX_SCALE = 1.45;
+const MIN_PX = 88;
+const MAX_PX = 280;
+const DEPTH_STEP = 0.012;
+
+const buildGridLayoutFromPattern = (pattern: number[]) => {
+  const rows = pattern.length;
+  const positions: [number, number][] = [];
+
+  pattern.forEach((count, rowIndex) => {
+    const y = ((rows - 1) / 2 - rowIndex) * SMALL_ROW_GAP;
+    const xOffset = ((count - 1) / 2) * SMALL_COL_GAP;
+
+    for (let column = 0; column < count; column += 1) {
+      const x = column * SMALL_COL_GAP - xOffset;
+      positions.push([x, y]);
+    }
+  });
+
+  return positions;
+};
 
 const buildRadialLayout = (total: number) => {
-  const radius = 2.1 + (total - 5) * 0.18;
+  const radius = 2.4 + Math.max(0, total - 6) * 0.22;
   const positions: [number, number][] = [[0, 0]];
 
-  if (total === 0) {
+  if (total <= 1) {
     return positions;
   }
 
   for (let index = 1; index < total; index += 1) {
-    const theta = ((index - 1) / Math.max(1, total - 1)) * Math.PI * 2;
+    const theta = index * GOLDEN_ANGLE;
     positions.push([Math.cos(theta) * radius, Math.sin(theta) * radius]);
   }
 
@@ -48,11 +73,13 @@ const buildRadialLayout = (total: number) => {
 };
 
 const getSmallLayoutPositions = (total: number) => {
-  if (SMALL_LAYOUTS[total]) {
-    return SMALL_LAYOUTS[total];
+  const pattern = SMALL_LAYOUT_PATTERNS[total];
+
+  if (!pattern) {
+    return buildRadialLayout(total);
   }
 
-  return buildRadialLayout(total);
+  return buildGridLayoutFromPattern(pattern);
 };
 
 const getPhyllotaxisPosition = (index: number): [number, number, number] => {
@@ -117,9 +144,15 @@ export const resolveWallInstances = (input: WallDatum[]): WallInstance[] => {
     const score = scores[index]!;
     const scale = computeScale(score, minScore, maxScore);
     const sizePx = computeSizePx(score, minScore, maxScore);
-    const position = useSmallLayout
+    const basePosition = useSmallLayout
       ? ([...(smallLayout![index] ?? [0, 0]), 0] as [number, number, number])
       : getPhyllotaxisPosition(index);
+
+    const position: [number, number, number] = [
+      basePosition[0],
+      basePosition[1],
+      basePosition[2] - index * DEPTH_STEP,
+    ];
 
     return {
       ...item,
