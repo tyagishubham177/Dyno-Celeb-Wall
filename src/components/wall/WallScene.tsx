@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import {
   Environment,
   Float,
@@ -123,8 +123,45 @@ const WallFrame = ({
 
 const Frames = ({ wall }: { wall: WallInstance[] }) => {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+
+  // Compute viewport in world units
+  const viewport = useThree((state) => state.viewport.getCurrentViewport(state.camera, [0, 0, 0]));
+  const viewWidth = viewport.width;
+  const viewHeight = viewport.height;
+
+  // Estimate content bounds using positions and nominal frame size
+  const bounds = useMemo(() => {
+    if (wall.length === 0) {
+      return { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 };
+    }
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const it of wall) {
+      const halfW = it.scale * (IMAGE_SCALE[0] / 2 + 0.15);
+      const halfH = it.scale * (IMAGE_SCALE[1] / 2 + 0.15);
+      const x = it.position[0];
+      const y = it.position[1];
+      minX = Math.min(minX, x - halfW);
+      maxX = Math.max(maxX, x + halfW);
+      minY = Math.min(minY, y - halfH);
+      maxY = Math.max(maxY, y + halfH);
+    }
+    return { minX, maxX, minY, maxY };
+  }, [wall]);
+
+  const margin = 0.05; // 5% from each edge
+  const usableW = viewWidth * (1 - margin * 2);
+  const usableH = viewHeight * (1 - margin * 2);
+  const contentW = Math.max(0.001, bounds.maxX - bounds.minX);
+  const contentH = Math.max(0.001, bounds.maxY - bounds.minY);
+  const scale = Math.min(usableW / contentW, usableH / contentH);
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+
   return (
-    <group>
+    <group scale={[scale, scale, 1]} position={[-centerX * scale, -centerY * scale, 0]}>
       {wall.map((instance) => (
         <WallFrame
           key={instance.id}

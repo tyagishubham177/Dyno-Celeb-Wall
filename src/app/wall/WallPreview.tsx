@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveWallInstances, type WallDatum, type WallInstance } from "@/lib/wall";
 
@@ -186,6 +187,18 @@ const WallPreview = () => {
               >
                 Randomize
               </button>
+              <Link
+                href="/admin/roster"
+                className="rounded-full border border-white/20 bg-slate-900/60 px-4 py-2 text-center text-slate-100 transition hover:border-white/40 hover:bg-slate-900/80"
+              >
+                Manage Roster
+              </Link>
+              <Link
+                href="/admin/seed"
+                className="rounded-full border border-white/20 bg-slate-900/60 px-4 py-2 text-center text-slate-100 transition hover:border-white/40 hover:bg-slate-900/80"
+              >
+                Seed New
+              </Link>
             </div>
           </div>
           {error ? (
