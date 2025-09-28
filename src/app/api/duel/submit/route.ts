@@ -87,23 +87,21 @@ export async function POST(request: Request) {
     const winnerId =
       winner === "tie" ? null : winner === "a" ? celebA.id : celebB.id;
 
-    await db.transaction(async (tx) => {
-      await tx
+    await db.batch([
+      db
         .update(schema.celebs)
         .set({ elo: nextA.rating, matches: updatedMatchesA })
-        .where(eq(schema.celebs.id, celebA.id));
-
-      await tx
+        .where(eq(schema.celebs.id, celebA.id)),
+      db
         .update(schema.celebs)
         .set({ elo: nextB.rating, matches: updatedMatchesB })
-        .where(eq(schema.celebs.id, celebB.id));
-
-      await tx.insert(schema.duels).values({
+        .where(eq(schema.celebs.id, celebB.id)),
+      db.insert(schema.duels).values({
         celebAId: celebA.id,
         celebBId: celebB.id,
         winnerId,
-      });
-    });
+      }),
+    ]);
 
     for (const path of WALL_PATHS_TO_REVALIDATE) {
       revalidatePath(path);
