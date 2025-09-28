@@ -11,9 +11,7 @@ export default function WallPage() {
           across templates or the phyllotaxis layout.
         </p>
       </header>
-      <div className="h-[560px] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60">
-        <WallPreview />
-      </div>
+      <WallPreview />
     </section>
   );
 }
