@@ -1,13 +1,4 @@
-﻿import dynamic from "next/dynamic";
-
-const WallScene = dynamic(() => import("@/components/wall/WallScene"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[560px] items-center justify-center rounded-2xl border border-white/10 bg-slate-900/60 text-sm text-slate-400">
-      Loading wall preview...
-    </div>
-  ),
-});
+﻿import WallPreview from "./WallPreview";
 
 export default function WallPage() {
   return (
@@ -21,7 +12,7 @@ export default function WallPage() {
         </p>
       </header>
       <div className="h-[560px] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60">
-        <WallScene />
+        <WallPreview />
       </div>
     </section>
   );
