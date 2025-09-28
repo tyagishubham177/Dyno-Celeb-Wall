@@ -1,4 +1,4 @@
-﻿const requiredServerEnv = ["DATABASE_URL"] as const;
+const requiredServerEnv = ["DATABASE_URL", "ADMIN_SEED_TOKEN"] as const;
 
 type ServerEnvKey = (typeof requiredServerEnv)[number];
 
@@ -21,6 +21,7 @@ export const loadServerEnv = (): ServerEnv => {
 
   cachedEnv = {
     DATABASE_URL: process.env.DATABASE_URL!,
+    ADMIN_SEED_TOKEN: process.env.ADMIN_SEED_TOKEN!,
   } satisfies ServerEnv;
 
   return cachedEnv;
