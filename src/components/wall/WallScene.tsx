@@ -5,17 +5,26 @@ import {
   Environment,
   Float,
   Html,
-  Image,
   OrbitControls,
   useCursor,
+  useTexture,
 } from "@react-three/drei";
 import { Suspense, useMemo, useState } from "react";
 import type { WallInstance } from "@/lib/wall";
+import * as THREE from "three";
 
 const IMAGE_SCALE: [number, number] = [1.06, 1.2];
 const IMAGE_OFFSET: [number, number, number] = [0, 0.02, 0];
 
-const WallFrame = ({ instance }: { instance: WallInstance }) => {
+const WallFrame = ({
+  instance,
+  hoveredId,
+  setHoveredId,
+}: {
+  instance: WallInstance;
+  hoveredId: number | null;
+  setHoveredId: (id: number | null) => void;
+}) => {
   const [hovered, setHovered] = useState(false);
   useCursor(hovered);
 
@@ -33,9 +42,18 @@ const WallFrame = ({ instance }: { instance: WallInstance }) => {
     .filter(Boolean)
     .join(" ");
 
-  const baseScale = hovered ? instance.scale * 1.08 : instance.scale;
+  const isDimmed = hoveredId !== null && hoveredId !== instance.id;
+  const baseScale = hovered
+    ? instance.scale * 1.1
+    : isDimmed
+      ? instance.scale * 0.9
+      : instance.scale;
   const distanceFactor = Math.max(5.4, 6.4 - (instance.scale - 1) * 2.2);
   const labelOffset = -0.9 - (instance.scale - 1) * 0.35;
+
+  // Load texture and render it double-sided so it looks correct from behind
+  const texture = useTexture(instance.imageUrl);
+  texture.colorSpace = THREE.SRGBColorSpace;
 
   return (
     <Float
@@ -49,10 +67,12 @@ const WallFrame = ({ instance }: { instance: WallInstance }) => {
         onPointerOver={(event) => {
           event.stopPropagation();
           setHovered(true);
+          setHoveredId(instance.id);
         }}
         onPointerOut={(event) => {
           event.stopPropagation();
           setHovered(false);
+          setHoveredId(null);
         }}
       >
         <mesh position={[0, 0, -0.08]}>
@@ -67,37 +87,51 @@ const WallFrame = ({ instance }: { instance: WallInstance }) => {
           <planeGeometry args={[1.16, 1.16]} />
           <meshStandardMaterial color="#111827" metalness={0.18} roughness={0.65} />
         </mesh>
-        {/* eslint-disable-next-line jsx-a11y/alt-text */}
-        <Image url={instance.imageUrl} scale={IMAGE_SCALE} position={IMAGE_OFFSET} toneMapped={false} />
-        <Html
-          transform
-          position={[0, labelOffset, 0]}
-          distanceFactor={distanceFactor}
-          occlude
-          className="pointer-events-none select-none"
-        >
-          <div className={labelClasses}>
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-white/10 px-2 py-px text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80">
-                #{instance.order + 1}
-              </span>
-              <span>{instance.name}</span>
+        <mesh position={IMAGE_OFFSET}>
+          <planeGeometry args={IMAGE_SCALE} />
+          <meshBasicMaterial
+            map={texture}
+            toneMapped={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {hovered ? (
+          <Html
+            transform
+            position={[0, labelOffset, 0]}
+            distanceFactor={distanceFactor}
+            occlude
+            className="pointer-events-none select-none"
+          >
+            <div className={labelClasses}>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-white/10 px-2 py-px text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80">
+                  #{instance.order + 1}
+                </span>
+                <span>{instance.name}</span>
+              </div>
+              <div className="mt-1 text-[10px] font-normal text-slate-300">
+                Elo {instance.elo} | Matches {instance.matches}
+              </div>
             </div>
-            <div className="mt-1 text-[10px] font-normal text-slate-300">
-              Elo {instance.elo} | Matches {instance.matches}
-            </div>
-          </div>
-        </Html>
+          </Html>
+        ) : null}
       </group>
     </Float>
   );
 };
 
 const Frames = ({ wall }: { wall: WallInstance[] }) => {
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
   return (
     <group>
       {wall.map((instance) => (
-        <WallFrame key={instance.id} instance={instance} />
+        <WallFrame
+          key={instance.id}
+          instance={instance}
+          hoveredId={hoveredId}
+          setHoveredId={setHoveredId}
+        />
       ))}
     </group>
   );
