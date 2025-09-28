@@ -26,7 +26,10 @@ const DEPTH_STEP = 0.012;
 // World-space cell spacing for the wall grid
 const CELL_W = 1.4;
 const CELL_H = 1.6;
-const JITTER_MAX = 0.18;
+const JITTER_MAX = 0.3;
+const TARGET_ASPECT = 1.35;
+const MIN_COLUMNS = 3;
+const MAX_COLUMNS = 12;
 
 // Simple seeded RNG for stable "ordered-disorder"
 const mulberry32 = (seed: number) => {
@@ -81,9 +84,17 @@ const pickTileForScale = (scale: number, rnd: () => number): Tile => {
   return TILE_1;
 };
 
-const computeColumns = (n: number) => {
-  // Aim for a landscape wall, more columns as items grow
-  return Math.max(5, Math.min(14, Math.ceil(Math.sqrt(n) * 2.4)));
+const computeColumns = (tiles: Tile[], rnd: () => number) => {
+  const totalCells = tiles.reduce((sum, tile) => sum + tile.w * tile.h, 0);
+  if (totalCells <= 0) {
+    return MIN_COLUMNS;
+  }
+
+  const base = Math.sqrt(totalCells * TARGET_ASPECT);
+  const jitter = (rnd() - 0.5) * 2; // +/-1 column wiggle before clamping
+  const estimate = Math.round(base + jitter);
+
+  return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, estimate));
 };
 
 type Placement = { x: number; y: number; tile: Tile };
@@ -236,7 +247,7 @@ export const resolveWallInstances = (
 
   const scales = scores.map((score) => computeScale(score, minScore, maxScore));
   const tiles: Tile[] = scales.map((scale) => pickTileForScale(scale, rnd));
-  const columns = computeColumns(sorted.length);
+  const columns = computeColumns(tiles, rnd);
   const { placements, bounds } = packMasonry(tiles, columns, rnd);
 
   const colCenter = (bounds.minCol + bounds.maxCol) / 2;
