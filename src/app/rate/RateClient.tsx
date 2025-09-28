@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type DuelContestant = {
   id: number;
@@ -13,105 +13,6 @@ type DuelContestant = {
 type DuelPair = {
   a: DuelContestant;
   b: DuelContestant;
-};
-
-const VOTE_CACHE_KEY = "dyno-recent-votes";
-const VOTE_COOLDOWN_MS = 60_000;
-
-type VoteCache = Record<string, number>;
-
-const getPairKey = (aId: number, bId: number) => {
-  return [aId, bId].sort((lhs, rhs) => lhs - rhs).join(":");
-};
-
-const readCache = (): VoteCache => {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    const raw = window.localStorage.getItem(VOTE_CACHE_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw) as VoteCache;
-    if (typeof parsed !== "object" || parsed === null) {
-      return {};
-    }
-
-    return parsed;
-  } catch {
-    return {};
-  }
-};
-
-const persistCache = (cache: VoteCache) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(VOTE_CACHE_KEY, JSON.stringify(cache));
-};
-
-const pruneCache = (cache: VoteCache) => {
-  const now = Date.now();
-  let mutated = false;
-
-  for (const key of Object.keys(cache)) {
-    const timestamp = cache[key];
-    if (!timestamp) {
-      delete cache[key];
-      mutated = true;
-      continue;
-    }
-
-    if (now - timestamp > VOTE_COOLDOWN_MS) {
-      delete cache[key];
-      mutated = true;
-    }
-  }
-
-  if (mutated) {
-    persistCache(cache);
-  }
-
-  return cache;
-};
-
-const hydrateCache = () => {
-  return pruneCache(readCache());
-};
-
-const hasRecentVote = (key: string) => {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const cache = hydrateCache();
-  const timestamp = cache[key];
-
-  if (!timestamp) {
-    return false;
-  }
-
-  const isFresh = Date.now() - timestamp < VOTE_COOLDOWN_MS;
-
-  if (!isFresh) {
-    delete cache[key];
-    persistCache(cache);
-  }
-
-  return isFresh;
-};
-
-const rememberVote = (key: string) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const cache = hydrateCache();
-  cache[key] = Date.now();
-  persistCache(cache);
 };
 
 const iconClass = "h-48 w-48 overflow-hidden rounded-2xl border border-white/10 bg-slate-800";
@@ -194,25 +95,12 @@ const RateClient = () => {
     void loadNextDuel();
   }, [loadNextDuel]);
 
-  const pairKey = useMemo(() => {
-    if (!duel) {
-      return null;
-    }
-
-    return getPairKey(duel.a.id, duel.b.id);
-  }, [duel]);
 
   const handleVote = useCallback(
     async (winner: "a" | "b" | "tie") => {
-      if (!duel || !pairKey) {
+      if (!duel || submitting) {
         return;
       }
-      if (hasRecentVote(pairKey)) {
-        setFeedback("Vote already recorded for this matchup. Please wait a moment.");
-        return;
-      }
-
-
       try {
         setSubmitting(true);
         setFeedback(null);
@@ -227,13 +115,9 @@ const RateClient = () => {
             winner,
           }),
         });
-
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`);
         }
-
-        rememberVote(pairKey);
-
         if (winner !== "tie") {
           setFeedback(
             winner === "a"
@@ -243,7 +127,6 @@ const RateClient = () => {
         } else {
           setFeedback("Tie recorded. Serving another duel...");
         }
-
         await loadNextDuel();
       } catch (err) {
         console.error("Failed to submit duel", err);
@@ -252,7 +135,7 @@ const RateClient = () => {
         setSubmitting(false);
       }
     },
-    [duel, pairKey, loadNextDuel],
+    [duel, loadNextDuel, submitting],
   );
 
   useEffect(() => {
@@ -354,7 +237,7 @@ const RateClient = () => {
         </button>
       </div>
       <div className="rounded-2xl border border-dashed border-white/20 bg-slate-900/30 p-4 text-xs text-slate-400">
-        Keyboard shortcuts: press A or B to vote, T to mark a tie, S to skip. Local storage prevents accidental double votes for one minute.
+        Keyboard shortcuts: press A or B to vote, T to mark a tie, S to skip. Votes lock while a submission is in progress.
       </div>
       {feedback ? (
         <div className="rounded-2xl border border-emerald-400/50 bg-emerald-500/10 p-4 text-xs text-emerald-200">
@@ -366,12 +249,6 @@ const RateClient = () => {
 };
 
 export default RateClient;
-
-
-
-
-
-
 
 
 
