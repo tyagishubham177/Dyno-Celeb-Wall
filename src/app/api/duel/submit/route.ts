@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 const isValidId = (value: unknown): value is number => {
-  return Number.isInteger(value) && value > 0;
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 };
 
 const isValidOutcome = (value: unknown): value is DuelOutcome => {
