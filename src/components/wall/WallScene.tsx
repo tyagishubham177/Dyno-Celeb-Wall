@@ -12,7 +12,7 @@ import {
 import { Suspense, useMemo, useState } from "react";
 import type { WallInstance } from "@/lib/wall";
 
-const IMAGE_SCALE = [1.06, 1.2] as const;
+const IMAGE_SCALE: [number, number] = [1.06, 1.2];
 const IMAGE_OFFSET: [number, number, number] = [0, 0.02, 0];
 
 const WallFrame = ({ instance }: { instance: WallInstance }) => {
@@ -166,3 +166,4 @@ export const WallScene = ({ wall }: WallSceneProps) => {
 };
 
 export default WallScene;
+
