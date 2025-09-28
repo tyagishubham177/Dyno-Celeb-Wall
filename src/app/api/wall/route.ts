@@ -23,6 +23,7 @@ export async function GET() {
     return NextResponse.json(
       {
         wall,
+        roster,
         generatedAt: new Date().toISOString(),
         count: wall.length,
       },

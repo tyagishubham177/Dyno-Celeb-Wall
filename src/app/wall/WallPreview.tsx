@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { WallInstance } from "@/lib/wall";
+import { resolveWallInstances, type WallDatum, type WallInstance } from "@/lib/wall";
 
 const DynamicWallScene = dynamic(() => import("@/components/wall/WallScene"), {
   ssr: false,
@@ -52,10 +52,18 @@ const formatTimestamp = (value: string | null) => {
 };
 
 const WallPreview = () => {
-  const [wall, setWall] = useState<WallInstance[]>([]);
+  const [roster, setRoster] = useState<WallDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [layoutSeed, setLayoutSeed] = useState<number>(() => {
+    if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+      const buffer = new Uint32Array(1);
+      crypto.getRandomValues(buffer);
+      return buffer[0] ?? Date.now();
+    }
+    return Date.now();
+  });
 
   const loadWall = useCallback(async () => {
     try {
@@ -69,14 +77,27 @@ const WallPreview = () => {
 
       const data = (await response.json()) as {
         wall?: WallInstance[];
+        roster?: WallDatum[];
         generatedAt?: string;
       };
 
-      setWall(Array.isArray(data.wall) ? data.wall : []);
+      const incomingRoster: WallDatum[] = Array.isArray(data.roster)
+        ? data.roster
+        : Array.isArray(data.wall)
+          ? data.wall.map((item) => ({
+              id: item.id,
+              name: item.name,
+              imageUrl: item.imageUrl,
+              elo: item.elo,
+              matches: item.matches,
+            }))
+          : [];
+
+      setRoster(incomingRoster);
       setGeneratedAt(data.generatedAt ?? new Date().toISOString());
     } catch (err) {
       console.error("Failed to load wall", err);
-      setWall([]);
+      setRoster([]);
       setError("Unable to load wall data. Try again.");
     } finally {
       setLoading(false);
@@ -92,6 +113,11 @@ const WallPreview = () => {
     [generatedAt],
   );
 
+  const wall = useMemo(
+    () => resolveWallInstances(roster, layoutSeed),
+    [roster, layoutSeed],
+  );
+
   const leaders = useMemo(() => wall.slice(0, 5), [wall]);
   const totalMatches = useMemo(
     () =>
@@ -102,6 +128,17 @@ const WallPreview = () => {
   );
 
   const currentStatus = statusLabel(wall, loading, error, readableTimestamp);
+
+  const randomizeLayout = useCallback(() => {
+    if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+      const buffer = new Uint32Array(1);
+      crypto.getRandomValues(buffer);
+      setLayoutSeed(buffer[0] ?? Date.now());
+      return;
+    }
+
+    setLayoutSeed((previous) => (previous + 1) >>> 0);
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:items-start">
@@ -133,14 +170,23 @@ const WallPreview = () => {
                 </p>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => void loadWall()}
-              disabled={loading}
-              className="rounded-full border border-white/20 bg-slate-900/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:border-white/40 hover:bg-slate-900/80 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Refresh
-            </button>
+            <div className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em]">
+              <button
+                type="button"
+                onClick={() => void loadWall()}
+                disabled={loading}
+                className="rounded-full border border-white/20 bg-slate-900/60 px-4 py-2 text-slate-100 transition hover:border-white/40 hover:bg-slate-900/80 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={randomizeLayout}
+                className="rounded-full border border-white/20 bg-slate-900/60 px-4 py-2 text-slate-100 transition hover:border-white/40 hover:bg-slate-900/80"
+              >
+                Randomize
+              </button>
+            </div>
           </div>
           {error ? (
             <button
