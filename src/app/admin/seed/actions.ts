@@ -8,19 +8,7 @@ import {
   WALL_CACHE_TAG,
   WALL_PATHS_TO_REVALIDATE,
 } from "@/lib/cache";
-
-export type SeedActionState = {
-  status: "idle" | "success" | "error";
-  message: string;
-  inserted?: number;
-  skipped?: number;
-  warnings?: string[];
-};
-
-export const initialSeedState: SeedActionState = {
-  status: "idle",
-  message: "",
-};
+import type { SeedActionState } from "./state";
 
 type ParsedEntry = {
   name: string;

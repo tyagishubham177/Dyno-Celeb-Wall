@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
-import {
-  initialSeedState,
-  seedRosterAction,
-  type SeedActionState,
-} from "./actions";
+import { seedRosterAction } from "./actions";
+import { initialSeedState, type SeedActionState } from "./state";
 
 const SubmitButton = () => {
   const { pending } = useFormStatus();
@@ -111,3 +108,4 @@ const SeedForm = () => {
 };
 
 export default SeedForm;
+
