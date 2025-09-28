@@ -12,6 +12,9 @@ import {
 import { Suspense, useMemo, useState } from "react";
 import type { WallInstance } from "@/lib/wall";
 
+const IMAGE_SCALE: [number, number, number] = [1.06, 1.2, 1];
+const IMAGE_OFFSET: [number, number, number] = [0, 0.02, 0];
+
 const WallFrame = ({ instance }: { instance: WallInstance }) => {
   const [hovered, setHovered] = useState(false);
   useCursor(hovered);
@@ -65,12 +68,7 @@ const WallFrame = ({ instance }: { instance: WallInstance }) => {
           <meshStandardMaterial color="#111827" metalness={0.18} roughness={0.65} />
         </mesh>
         {/* eslint-disable-next-line jsx-a11y/alt-text */}
-        <Image
-          url={instance.imageUrl}
-          scale={[1.06, 1.2, 1]}
-          position={[0, 0.02, 0]}
-          toneMapped={false}
-        />
+        <Image url={instance.imageUrl} scale={IMAGE_SCALE} position={IMAGE_OFFSET} toneMapped={false} />
         <Html
           transform
           position={[0, labelOffset, 0]}
