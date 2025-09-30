@@ -31,35 +31,39 @@ const WallFrame = ({
   const isLeader = instance.order === 0;
   const isTopFive = instance.order < 5;
   const labelClasses = [
-    "min-w-[160px] rounded-full border px-3 py-1 text-xs font-semibold shadow-lg shadow-black/40 backdrop-blur transition-all",
-    hovered ? "scale-[1.03]" : "",
+    "min-w-[180px] rounded-2xl border px-4 py-2 text-sm font-semibold shadow-2xl backdrop-blur-xl transition-all duration-300",
+    hovered ? "scale-105" : "",
     isLeader
-      ? "border-emerald-400/70 bg-emerald-500/10 text-emerald-100"
+      ? "border-amber-400/80 bg-gradient-to-br from-amber-500/20 via-yellow-500/15 to-orange-500/20 text-amber-50 shadow-amber-500/30"
       : isTopFive
-        ? "border-sky-400/50 bg-sky-500/10 text-sky-100"
-        : "border-slate-700/60 bg-slate-900/80 text-slate-200",
+        ? "border-cyan-400/60 bg-gradient-to-br from-cyan-500/15 via-blue-500/10 to-indigo-500/15 text-cyan-50 shadow-cyan-500/20"
+        : "border-slate-600/40 bg-gradient-to-br from-slate-800/90 via-slate-900/90 to-slate-800/90 text-slate-100",
   ]
     .filter(Boolean)
     .join(" ");
 
   const isDimmed = hoveredId !== null && hoveredId !== instance.id;
   const baseScale = hovered
-    ? instance.scale * 1.1
+    ? instance.scale * 1.15
     : isDimmed
-      ? instance.scale * 0.9
+      ? instance.scale * 0.85
       : instance.scale;
   const distanceFactor = Math.max(5.4, 6.4 - (instance.scale - 1) * 2.2);
-  const labelOffset = -0.9 - (instance.scale - 1) * 0.35;
+  const labelOffset = -0.95 - (instance.scale - 1) * 0.35;
 
   // Load texture and render it double-sided so it looks correct from behind
   const texture = useTexture(instance.imageUrl);
   texture.colorSpace = THREE.SRGBColorSpace;
 
+  // Glow color for top performers
+  const glowColor = isLeader ? "#fbbf24" : isTopFive ? "#22d3ee" : "#475569";
+  const glowIntensity = hovered ? (isLeader ? 2.5 : isTopFive ? 1.8 : 0.8) : (isLeader ? 1.5 : isTopFive ? 1.0 : 0);
+
   return (
     <Float
-      speed={hovered ? 1.35 : 0.9}
-      rotationIntensity={hovered ? 0.45 : 0.18}
-      floatIntensity={hovered ? 1.2 : 0.6}
+      speed={hovered ? 1.5 : 1.0}
+      rotationIntensity={hovered ? 0.5 : 0.2}
+      floatIntensity={hovered ? 1.4 : 0.7}
     >
       <group
         position={instance.position}
@@ -75,26 +79,64 @@ const WallFrame = ({
           setHoveredId(null);
         }}
       >
+        {/* Glow effect for top performers */}
+        {glowIntensity > 0 && (
+          <mesh position={[0, 0, -0.12]} scale={1.15}>
+            <planeGeometry args={[1.4, 1.4]} />
+            <meshBasicMaterial
+              color={glowColor}
+              transparent
+              opacity={glowIntensity * 0.15}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        )}
+
+        {/* Outer frame with metallic finish */}
         <mesh position={[0, 0, -0.08]}>
           <planeGeometry args={[1.32, 1.32]} />
           <meshStandardMaterial
-            color={hovered ? "#1e293b" : "#0f172a"}
-            metalness={0.15}
-            roughness={0.8}
+            color={hovered ? (isLeader ? "#78350f" : isTopFive ? "#164e63" : "#1e293b") : "#0f172a"}
+            metalness={0.7}
+            roughness={0.3}
+            envMapIntensity={1.5}
           />
         </mesh>
+
+        {/* Inner frame shadow */}
         <mesh position={[0, 0, -0.04]} castShadow>
           <planeGeometry args={[1.16, 1.16]} />
-          <meshStandardMaterial color="#111827" metalness={0.18} roughness={0.65} />
+          <meshStandardMaterial
+            color="#0a0a0f"
+            metalness={0.4}
+            roughness={0.5}
+            envMapIntensity={1.2}
+          />
         </mesh>
+
+        {/* Image */}
         <mesh position={IMAGE_OFFSET}>
           <planeGeometry args={IMAGE_SCALE} />
           <meshBasicMaterial
             map={texture}
             toneMapped={false}
             side={THREE.DoubleSide}
+            opacity={isDimmed ? 0.9 : 1}
+            transparent={isDimmed}
           />
         </mesh>
+
+        {/* Spotlight effect for leader/top 5 when hovered */}
+        {hovered && (isLeader || isTopFive) && (
+          <pointLight
+            position={[0, 0, 1.5]}
+            intensity={isLeader ? 2 : 1.2}
+            distance={3}
+            color={glowColor}
+            decay={2}
+          />
+        )}
+
         {hovered ? (
           <Html
             transform
@@ -105,13 +147,25 @@ const WallFrame = ({
           >
             <div className={labelClasses}>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-white/10 px-2 py-px text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80">
+                <span
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wider ${
+                    isLeader
+                      ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-950"
+                      : isTopFive
+                        ? "bg-gradient-to-r from-cyan-400 to-blue-500 text-cyan-950"
+                        : "bg-white/15 text-white/90"
+                  }`}
+                >
                   #{instance.order + 1}
                 </span>
-                <span>{instance.name}</span>
+                <span className="font-bold">{instance.name}</span>
               </div>
-              <div className="mt-1 text-[10px] font-normal text-slate-300">
-                Elo {instance.elo} | Matches {instance.matches}
+              <div className="mt-2 flex items-center gap-4 text-xs">
+                <span className={isLeader || isTopFive ? "font-semibold" : "font-normal"}>
+                  ⚡ {instance.elo}
+                </span>
+                <span className="text-white/70">•</span>
+                <span className="text-white/80">{instance.matches} matches</span>
               </div>
             </div>
           </Html>
@@ -177,8 +231,17 @@ const Frames = ({ wall }: { wall: WallInstance[] }) => {
 const EmptyState = () => {
   return (
     <Html center>
-      <div className="rounded-full border border-white/20 bg-slate-900/80 px-4 py-2 text-sm text-slate-200">
-        Seed a few celebs to bring the wall to life.
+      <div className="group flex flex-col items-center gap-3 rounded-3xl border border-white/15 bg-white/5 px-8 py-6 text-center text-sm text-white/80 shadow-2xl shadow-black/40 backdrop-blur-xl">
+        <div className="relative h-14 w-14">
+          <div className="absolute inset-0 animate-ping rounded-full bg-cyan-400/30" />
+          <div className="relative flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-500 text-lg text-white shadow-lg shadow-cyan-500/40">
+            🎪
+          </div>
+        </div>
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-white">The gallery awaits its stars</p>
+          <p className="text-xs text-white/70">Seed a few celebs to bring the wall to life.</p>
+        </div>
       </div>
     </Html>
   );
@@ -215,11 +278,37 @@ export const WallScene = ({ wall }: WallSceneProps) => {
       shadows
       camera={{ position: [0, 0.4, cameraZ], fov: 42 }}
       dpr={[1, 2]}
+      gl={{ antialias: true }}
+      onCreated={({ gl }) => {
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.15;
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+        gl.shadowMap.enabled = true;
+        gl.shadowMap.autoUpdate = true;
+      }}
     >
       <color attach="background" args={["#020617"]} />
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[6, 8, 6]} intensity={1.2} castShadow />
-      <directionalLight position={[-6, -3, -6]} intensity={0.4} />
+      <fog attach="fog" args={["#020617", 6, 22]} />
+      <ambientLight intensity={0.45} color="#fef3c7" />
+      <spotLight
+        position={[0, 6, 2]}
+        angle={Math.PI / 5}
+        penumbra={0.6}
+        intensity={2}
+        color="#fbbf24"
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0002}
+      />
+      <directionalLight
+        position={[4, 2, 6]}
+        intensity={0.7}
+        color="#e0f2fe"
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+      />
+      <pointLight position={[-6, 1, -4]} intensity={0.6} color="#38bdf8" />
+      <directionalLight position={[0, -4, -6]} intensity={0.35} color="#0ea5e9" />
       <Suspense fallback={null}>
         {hasActors ? <Frames wall={wall} /> : <EmptyState />}
         <Environment preset="city" background={false} />
@@ -227,9 +316,13 @@ export const WallScene = ({ wall }: WallSceneProps) => {
       <OrbitControls
         enablePan={false}
         enableDamping
-        dampingFactor={0.08}
+        dampingFactor={0.12}
         minDistance={6.4}
-        maxDistance={16}
+        maxDistance={14}
+        minPolarAngle={Math.PI / 3.4}
+        maxPolarAngle={Math.PI / 1.9}
+        minAzimuthAngle={-Math.PI / 9}
+        maxAzimuthAngle={Math.PI / 9}
         target={[0, -0.2, 0]}
       />
     </Canvas>
