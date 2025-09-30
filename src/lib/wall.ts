@@ -16,91 +16,186 @@ export type WallInstance = WallDatum & {
   order: number;
 };
 
-const SMALL_LAYOUT_PATTERNS: Record<number, number[]> = {
-  1: [1],
-  2: [2],
-  3: [1, 2],
-  4: [2, 2],
-  5: [2, 3],
-  6: [3, 3],
-  7: [3, 4],
-  8: [3, 5],
-  9: [3, 3, 3],
-};
-
-const SMALL_COL_GAP = 2.45;
-const SMALL_ROW_GAP = 2.75;
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const BASE_RADIAL_SPACING = 1.85;
-const ASPECT_SQUASH = 0.78;
+// Layout + scale constants
 const MIN_SCALE = 0.92;
 const MAX_SCALE = 1.45;
 const MIN_PX = 88;
 const MAX_PX = 280;
 const DEPTH_STEP = 0.012;
 
-const buildGridLayoutFromPattern = (pattern: number[]) => {
-  const rows = pattern.length;
-  const positions: [number, number][] = [];
+// World-space cell spacing for the wall grid
+const CELL_W = 1.4;
+const CELL_H = 1.6;
+const JITTER_MAX = 0.3;
+const TARGET_ASPECT = 1.35;
+const MIN_COLUMNS = 3;
+const MAX_COLUMNS = 12;
 
-  pattern.forEach((count, rowIndex) => {
-    const y = ((rows - 1) / 2 - rowIndex) * SMALL_ROW_GAP;
-    const xOffset = ((count - 1) / 2) * SMALL_COL_GAP;
+// Simple seeded RNG for stable "ordered-disorder"
+const mulberry32 = (seed: number) => {
+  return () => {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
 
-    for (let column = 0; column < count; column += 1) {
-      const x = column * SMALL_COL_GAP - xOffset;
-      positions.push([x, y]);
+const hash = (str: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+
+const shuffle = <T,>(array: T[], rnd: () => number) => {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rnd() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+
+type Tile = {
+  w: number; // in cells
+  h: number; // in cells
+};
+
+const TILE_XL: Tile = { w: 2, h: 2 };
+const TILE_H2: Tile = { w: 2, h: 1 };
+const TILE_V2: Tile = { w: 1, h: 2 };
+const TILE_1: Tile = { w: 1, h: 1 };
+
+const pickTileForScale = (scale: number, rnd: () => number): Tile => {
+  if (scale >= 1.3) {
+    return TILE_XL;
+  }
+
+  if (scale >= 1.16) {
+    return rnd() > 0.5 ? TILE_H2 : TILE_V2;
+  }
+
+  if (scale >= 1.05) {
+    return rnd() > 0.7 ? (rnd() > 0.5 ? TILE_H2 : TILE_V2) : TILE_1;
+  }
+
+  return TILE_1;
+};
+
+const computeColumns = (tiles: Tile[], rnd: () => number) => {
+  const totalCells = tiles.reduce((sum, tile) => sum + tile.w * tile.h, 0);
+  if (totalCells <= 0) {
+    return MIN_COLUMNS;
+  }
+
+  const base = Math.sqrt(totalCells * TARGET_ASPECT);
+  const jitter = (rnd() - 0.5) * 2; // +/-1 column wiggle before clamping
+  const estimate = Math.round(base + jitter);
+
+  return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, estimate));
+};
+
+type Placement = { x: number; y: number; tile: Tile };
+type PlacementResult = {
+  placements: Placement[];
+  bounds: {
+    minCol: number;
+    maxCol: number;
+    minRow: number;
+    maxRow: number;
+  };
+};
+
+const packMasonry = (tiles: Tile[], columns: number, rnd: () => number): PlacementResult => {
+  const grid: number[][] = [];
+  const placements: Placement[] = [];
+  let minCol = Number.POSITIVE_INFINITY;
+  let maxCol = Number.NEGATIVE_INFINITY;
+  let minRow = Number.POSITIVE_INFINITY;
+  let maxRow = Number.NEGATIVE_INFINITY;
+
+  const fits = (r: number, c: number, t: Tile) => {
+    for (let y = 0; y < t.h; y += 1) {
+      for (let x = 0; x < t.w; x += 1) {
+        const rr = r + y;
+        const cc = c + x;
+        if (cc < 0 || cc >= columns) {
+          return false;
+        }
+        if (!grid[rr]) {
+          grid[rr] = [];
+        }
+        if (grid[rr][cc]) {
+          return false;
+        }
+      }
     }
-  });
+    return true;
+  };
 
-  return positions;
-};
+  const place = (t: Tile) => {
+    let r = 0;
+    const MAX_ROWS = 200;
 
-const buildRadialLayout = (total: number) => {
-  const radius = 2.4 + Math.max(0, total - 6) * 0.22;
-  const positions: [number, number][] = [[0, 0]];
+    while (r < MAX_ROWS) {
+      const candidates = shuffle(
+        Array.from({ length: Math.max(1, columns - t.w + 1) }, (_, index) => index),
+        rnd,
+      );
+      for (const c of candidates) {
+        if (fits(r, c, t)) {
+          for (let y = 0; y < t.h; y += 1) {
+            for (let x = 0; x < t.w; x += 1) {
+              const rr = r + y;
+              const cc = c + x;
+              if (!grid[rr]) {
+                grid[rr] = [];
+              }
+              grid[rr][cc] = 1;
+            }
+          }
+          placements.push({ x: c, y: r, tile: t });
+          minCol = Math.min(minCol, c);
+          maxCol = Math.max(maxCol, c + t.w);
+          minRow = Math.min(minRow, r);
+          maxRow = Math.max(maxRow, r + t.h);
+          return;
+        }
+      }
+      r += 1;
+    }
 
-  if (total <= 1) {
-    return positions;
+    placements.push({ x: 0, y: r, tile: t });
+    minCol = Math.min(minCol, 0);
+    maxCol = Math.max(maxCol, t.w);
+    minRow = Math.min(minRow, r);
+    maxRow = Math.max(maxRow, r + t.h);
+  };
+
+  tiles.forEach(place);
+
+  if (!Number.isFinite(minCol)) {
+    minCol = 0;
+    maxCol = columns;
+    minRow = 0;
+    maxRow = grid.length;
   }
 
-  for (let index = 1; index < total; index += 1) {
-    const theta = index * GOLDEN_ANGLE;
-    positions.push([Math.cos(theta) * radius, Math.sin(theta) * radius]);
-  }
-
-  return positions;
-};
-
-const getSmallLayoutPositions = (total: number) => {
-  const pattern = SMALL_LAYOUT_PATTERNS[total];
-
-  if (!pattern) {
-    return buildRadialLayout(total);
-  }
-
-  return buildGridLayoutFromPattern(pattern);
-};
-
-const getPhyllotaxisPosition = (index: number): [number, number, number] => {
-  if (index === 0) {
-    return [0, 0, 0];
-  }
-
-  const radius = BASE_RADIAL_SPACING * Math.sqrt(index);
-  const angle = index * GOLDEN_ANGLE;
-  const x = radius * Math.cos(angle);
-  const y = radius * Math.sin(angle) * ASPECT_SQUASH;
-
-  return [x, y, 0];
+  return {
+    placements,
+    bounds: {
+      minCol,
+      maxCol,
+      minRow,
+      maxRow,
+    },
+  };
 };
 
 const computeScale = (score: number, minScore: number, maxScore: number) => {
-  if (!Number.isFinite(score)) {
-    return (MIN_SCALE + MAX_SCALE) / 2;
-  }
-
-  if (maxScore === minScore) {
+  if (!Number.isFinite(score) || maxScore === minScore) {
     return (MIN_SCALE + MAX_SCALE) / 2;
   }
 
@@ -123,11 +218,19 @@ const computeSizePx = (score: number, minScore: number, maxScore: number) => {
   return MIN_PX + logistic * (MAX_PX - MIN_PX);
 };
 
-export const resolveWallInstances = (input: WallDatum[]): WallInstance[] => {
+const combineSeeds = (base: number, override: number) => {
+  return (base ^ (override >>> 0)) >>> 0;
+};
+
+export const resolveWallInstances = (
+  input: WallDatum[],
+  seedOverride: number = 0,
+): WallInstance[] => {
   if (!input.length) {
     return [];
   }
 
+  // Sort by conservative score (ranked order)
   const sorted = [...input].sort((a, b) => {
     return (
       conservativeScore(b.elo, b.matches) - conservativeScore(a.elo, a.matches)
@@ -137,21 +240,35 @@ export const resolveWallInstances = (input: WallDatum[]): WallInstance[] => {
   const scores = sorted.map((item) => conservativeScore(item.elo, item.matches));
   const minScore = Math.min(...scores);
   const maxScore = Math.max(...scores);
-  const useSmallLayout = sorted.length <= 9;
-  const smallLayout = useSmallLayout ? getSmallLayoutPositions(sorted.length) : null;
+
+  const seedBase = hash(sorted.map((x) => `${x.id}:${x.elo}:${x.matches}`).join("|"));
+  const seed = combineSeeds(seedBase, seedOverride);
+  const rnd = mulberry32(seed);
+
+  const scales = scores.map((score) => computeScale(score, minScore, maxScore));
+  const tiles: Tile[] = scales.map((scale) => pickTileForScale(scale, rnd));
+  const columns = computeColumns(tiles, rnd);
+  const { placements, bounds } = packMasonry(tiles, columns, rnd);
+
+  const colCenter = (bounds.minCol + bounds.maxCol) / 2;
+  const rowCenter = (bounds.minRow + bounds.maxRow) / 2;
 
   return sorted.map((item, index) => {
     const score = scores[index]!;
-    const scale = computeScale(score, minScore, maxScore);
     const sizePx = computeSizePx(score, minScore, maxScore);
-    const basePosition = useSmallLayout
-      ? ([...(smallLayout![index] ?? [0, 0]), 0] as [number, number, number])
-      : getPhyllotaxisPosition(index);
+    const scale = scales[index]!;
+    const { x, y, tile } = placements[index]!;
+
+    const jitterX = (rnd() - 0.5) * JITTER_MAX;
+    const jitterY = (rnd() - 0.5) * JITTER_MAX;
+
+    const worldX = ((x + tile.w / 2) - colCenter) * CELL_W + jitterX;
+    const worldY = (rowCenter - (y + tile.h / 2)) * CELL_H + jitterY;
 
     const position: [number, number, number] = [
-      basePosition[0],
-      basePosition[1],
-      basePosition[2] - index * DEPTH_STEP,
+      worldX,
+      worldY,
+      -index * DEPTH_STEP,
     ];
 
     return {
